@@ -176,6 +176,8 @@
 
     const specialLinks = /((mailto:\w+)|(tel:\w+)).+/;
 
+    let sideEffectDisabled = false;
+
     const hasWindow = typeof window !== 'undefined',
         hasHistory = typeof history !== 'undefined',
         hasLocation = typeof location !== 'undefined',
@@ -190,15 +192,19 @@
     let popstate = false,
         len = 0;
 
+    function disableSideEffect() { sideEffectDisabled = true; }
+
+    function enableSideEffect() { sideEffectDisabled = false; }
+
     const path = pathStore(pathname);
 
     const query = queryStore(search);
 
     const fragment = store.writable(hash, set => {
         const handler = () => set(location.hash);
-        sideEffect && window.addEventListener('hashchange', handler);
+        sideEffect && !sideEffectDisabled && window.addEventListener('hashchange', handler);
         return () => {
-            sideEffect && window.removeEventListener('hashchange', handler);
+            sideEffect && !sideEffectDisabled && window.removeEventListener('hashchange', handler);
         };
     });
 
@@ -222,17 +228,20 @@
 
     if (sideEffect) {
         url.subscribe($url => {
+            if (sideEffectDisabled) { return; }
             if (popstate) return popstate = false;
             history.pushState({}, null, $url);
             len++;
         });
 
         state.subscribe($state => {
+            if (sideEffectDisabled) { return; }
             const url = location.pathname + location.search + location.hash;
             history.replaceState($state, null, url);
         });
 
         window.addEventListener('popstate', e => {
+            if (sideEffectDisabled) { return; }
             popstate = true;
             goto(location.href, e.state);
         });
@@ -250,7 +259,7 @@
     }
 
     function back(pathname = '/') {
-        if (len > 0 && sideEffect) {
+        if (len > 0 && sideEffect && !sideEffectDisabled) {
             history.back();
             len--;
         } else {
@@ -342,6 +351,8 @@
 
     exports.back = back;
     exports.click = click;
+    exports.disableSideEffect = disableSideEffect;
+    exports.enableSideEffect = enableSideEffect;
     exports.fragment = fragment;
     exports.goto = goto;
     exports.path = path;
